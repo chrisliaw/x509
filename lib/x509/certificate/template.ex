@@ -3,6 +3,8 @@ defmodule X509.Certificate.Template do
   Certificate templates.
   """
 
+  require Logger
+
   import X509.Certificate.Extension
 
   defstruct serial: {:random, 8}, validity: 365, hash: :sha256, extensions: []
@@ -196,6 +198,20 @@ defmodule X509.Certificate.Template do
     |> new(opts)
   end
 
+  def new(:subscriber, opts) do
+    %__MODULE__{
+      validity: 365,
+      hash: :sha256,
+      extensions: [
+        basic_constraints: basic_constraints(false),
+        key_usage: key_usage([:digitalSignature, :keyEncipherment, :keyAgreement]),
+        subject_key_identifier: true,
+        authority_key_identifier: true
+      ]
+    }
+    |> new(opts)
+  end
+
   def new(template, opts) do
     override =
       opts
@@ -206,8 +222,15 @@ defmodule X509.Certificate.Template do
       template.extensions
       |> Keyword.merge(Keyword.get(opts, :extensions, []))
 
+    # Logger.debug("x509 extensions : #{inspect(extensions)}")
+    # Logger.debug("x509 template : #{inspect(template)}")
+
+    # res =
     template
     |> Map.merge(override)
     |> Map.put(:extensions, extensions)
+
+    # Logger.debug("final template : #{inspect(res)}")
+    # res
   end
 end

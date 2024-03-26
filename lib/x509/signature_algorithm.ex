@@ -13,6 +13,10 @@ defmodule X509.SignatureAlgorithm do
     new(hash, algorithm, type)
   end
 
+  def new(hash, %{key_algo: algorithm, callback: _}, type) do
+    new(hash, algorithm, type)
+  end
+
   def new(hash, rsa_private_key(), type) do
     new(hash, :rsa, type)
   end
@@ -24,6 +28,11 @@ defmodule X509.SignatureAlgorithm do
   def new(hash, signature, :SignatureAlgorithm) do
     {oid, parameters} = algorithm(hash, signature)
     signature_algorithm(algorithm: oid, parameters: parameters)
+  end
+
+  def new(hash, %{key_algo: algo, callback: _}, :CertificationRequest_signatureAlgorithm) do
+    {oid, parameters} = algorithm(hash, algo)
+    certification_request_signature_algorithm(algorithm: oid, parameters: parameters)
   end
 
   def new(hash, signature, :CertificationRequest_signatureAlgorithm) do

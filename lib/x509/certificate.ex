@@ -11,8 +11,11 @@ defmodule X509.Certificate do
 
   import X509.ASN1, except: [extension: 2]
 
+  alias X509.Certificate.Signer.CertSigner
   alias X509.{PublicKey, RDNSequence, SignatureAlgorithm}
   alias X509.Certificate.{Template, Validity, Extension}
+
+  require Logger
 
   @typedoc """
   `:OTPCertificate` record , as used in Erlang's `:public_key` module
@@ -83,7 +86,8 @@ defmodule X509.Certificate do
 
     public_key
     |> new_otp_tbs_certificate(subject_rdn, issuer_rdn, algorithm, template)
-    |> :public_key.pkix_sign(issuer_key)
+    |> CertSigner.sign_cert(issuer_key)
+    # |> :public_key.pkix_sign(issuer_key)
     |> from_der!()
   end
 
@@ -135,7 +139,8 @@ defmodule X509.Certificate do
 
     public_key
     |> new_otp_tbs_certificate(subject_rdn, subject_rdn, algorithm, template)
-    |> :public_key.pkix_sign(private_key)
+    |> CertSigner.sign_cert(private_key)
+    # |> :public_key.pkix_sign(private_key)
     |> from_der!()
   end
 
