@@ -25,3 +25,4 @@ x509-*.tar
 # Ignore any Mix-task generated certificates/keys
 /priv/cert/
 .DS_Store
+*.crt

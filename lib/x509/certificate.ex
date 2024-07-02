@@ -122,8 +122,11 @@ defmodule X509.Certificate do
           String.t() | X509.RDNSequence.t(),
           Keyword.t()
         ) :: t()
-  def self_signed(private_key, subject_rdn, opts \\ []) do
-    public_key = PublicKey.derive(private_key)
+  def self_signed(private_key, subject_rdn, opts \\ [])
+
+  def self_signed(%{callback: _cb} = private_key, subject_rdn, opts) do
+    # public_key = PublicKey.derive(private_key)
+    public_key = private_key.public_key
 
     template =
       opts
@@ -141,6 +144,27 @@ defmodule X509.Certificate do
     |> new_otp_tbs_certificate(subject_rdn, subject_rdn, algorithm, template)
     |> CertSigner.sign_cert(private_key)
     # |> :public_key.pkix_sign(private_key)
+    |> from_der!()
+  end
+
+  def self_signed(private_key, subject_rdn, opts) do
+    public_key = PublicKey.derive(private_key)
+
+    template =
+      opts
+      |> Keyword.get(:template, :server)
+      |> Template.new(opts)
+      |> update_ski(public_key)
+      |> update_aki(public_key)
+
+    algorithm =
+      template
+      |> Map.get(:hash)
+      |> SignatureAlgorithm.new(private_key)
+
+    public_key
+    |> new_otp_tbs_certificate(subject_rdn, subject_rdn, algorithm, template)
+    |> :public_key.pkix_sign(private_key)
     |> from_der!()
   end
 

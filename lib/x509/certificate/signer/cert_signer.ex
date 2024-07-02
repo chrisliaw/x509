@@ -22,24 +22,23 @@ defmodule X509.Certificate.Signer.CertSigner do
   end
 
   def sign_cert(tbs_cert, issuer_key) do
+    Logger.debug("Native private key signing")
     # Logger.debug("sign cert : #{inspect(tbs_cert)} ")
     # Logger.debug("tbs cert type : #{Record.is_record(tbs_cert)}")
 
-    enc = :public_key.pkix_encode(:OTPTBSCertificate, tbs_cert, :otp)
+    # enc = :public_key.pkix_encode(:OTPTBSCertificate, tbs_cert, :otp)
     # Logger.debug("pkix_encode tbs cert : #{inspect(enc)}")
 
-    signAlgo = tbs_cert |> elem(3)
-    {digest, algo, opts} = :pubkey_cert.x509_pkix_sign_types(signAlgo)
-    signout = :public_key.sign(enc, digest, issuer_key, opts)
+    # signAlgo = tbs_cert |> elem(3)
+    # {digest, _algo, opts} = :pubkey_cert.x509_pkix_sign_types(signAlgo)
+    # signout = :public_key.sign(enc, digest, issuer_key, opts)
     # Logger.debug("signout : #{inspect(signout)}")
     # Logger.debug("issuer key : #{inspect(issuer_key)}")
 
-    c =
-      otp_certificate(tbsCertificate: tbs_cert, signatureAlgorithm: signAlgo, signature: signout)
+    # c =
+    # otp_certificate(tbsCertificate: tbs_cert, signatureAlgorithm: signAlgo, signature: signout)
 
-    # Logger.debug("c : #{inspect(c)}")
-
-    last_enc = :public_key.pkix_encode(:OTPCertificate, c, :otp)
+    # last_enc = :public_key.pkix_encode(:OTPCertificate, c, :otp)
     # Logger.debug("last_enc : #{inspect(last_enc)}")
 
     res = :public_key.pkix_sign(tbs_cert, issuer_key)
