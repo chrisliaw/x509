@@ -241,6 +241,10 @@ defmodule X509.RDNSequence do
   defp attr_type_to_oid(type) when type in ["emailAddress", "E", :emailAddress],
     do: oid(:"id-emailAddress")
 
+  # added by Chris
+  defp attr_type_to_oid(type) when type in ["anotherName", "otherName", :anotherName, :otherName],
+    do: {2, 5, 4, 97}
+
   defp attr_to_string({:AttributeTypeAndValue, _, value} = attr) when is_binary(value) do
     # FIXME: avoid calls to undocumented functions in :public_key app
     attr
@@ -282,7 +286,9 @@ defmodule X509.RDNSequence do
   defp attr_value_to_string({:ia5String, value}), do: List.to_string(value)
   # FIXME: for 8-bit teletexString this requires mapping (see RFC1345)
   defp attr_value_to_string({:teletexString, value}), do: List.to_string(value)
-  defp attr_value_to_string(value), do: List.to_string(value)
+  # changed by Chris
+  defp attr_value_to_string(value) when is_list(value), do: List.to_string(value)
+  defp attr_value_to_string(value), do: Kernel.to_string(value)
 
   # Splits an attribute in the form of "type=value" into a {type, value} tuple
   defp split_attr(string) do
@@ -405,7 +411,7 @@ defmodule X509.RDNSequence do
                      ?A..?Z |> Enum.into([]),
                      ?a..?z |> Enum.into([]),
                      ?0..?9 |> Enum.into([]),
-                     ' \'()+,-./:=?'
+                     ~c" '()+,-./:=?"
                    ]
                    |> List.flatten()
 

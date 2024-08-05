@@ -425,6 +425,8 @@ defmodule X509.Certificate.Extension do
   def find(list, :authority_info_access), do: find(list, oid(:"id-pe-authorityInfoAccess"))
   def find(list, :ocsp_nocheck), do: find(list, @ocsp_nocheck_oid)
 
+  # def find(list, :other_name), do: find(list, oid(:another_name))
+
   def find(list, extension_oid) do
     Enum.find(list, &match?(extension(extnID: ^extension_oid), &1))
   end
