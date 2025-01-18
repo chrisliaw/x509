@@ -131,7 +131,7 @@ defmodule X509.CSR do
 
         # support external signing
         %{callback: cb, key_algo: _} ->
-          cb.(info_der, hash)
+          cb.(info_der, hash, %{})
 
         _ ->
           :public_key.sign(info_der, hash, private_key)
