@@ -250,11 +250,11 @@ defmodule X509.Certificate.Extension do
 
       iex> X509.Certificate.Extension.subject_alt_name(["www.example.com", "example.com"])
       {:Extension, {2, 5, 29, 17}, false,
-       [dNSName: 'www.example.com', dNSName: 'example.com']}
+       [dNSName: ~c"www.example.com", dNSName: ~c"example.com"]}
 
-      iex> X509.Certificate.Extension.subject_alt_name(emailAddress: 'user@example.com')
+      iex> X509.Certificate.Extension.subject_alt_name(emailAddress: ~c"user@example.com")
       {:Extension, {2, 5, 29, 17}, false,
-       [emailAddress: 'user@example.com']}
+       [emailAddress: ~c"user@example.com"]}
   """
   @spec subject_alt_name([san_value()]) :: t()
   def subject_alt_name(value) do
@@ -289,7 +289,7 @@ defmodule X509.Certificate.Extension do
       {:Extension, {2, 5, 29, 31}, false,
        [
          {:DistributionPoint,
-          {:fullName, [uniformResourceIdentifier: 'http://crl.example.org/root.crl']},
+          {:fullName, [uniformResourceIdentifier: ~c"http://crl.example.org/root.crl"]},
           :asn1_NOVALUE, :asn1_NOVALUE}
        ]}
   """
@@ -434,7 +434,7 @@ defmodule X509.Certificate.Extension do
   @doc false
   # Intended for internal use only
   def to_der(list) when is_list(list) do
-    :public_key.der_encode(:OTPExtensions, Enum.map(list, &encode/1))
+    :public_key.der_encode(:Extensions, Enum.map(list, &encode/1))
   end
 
   def to_der(extension() = ext) do
@@ -445,8 +445,8 @@ defmodule X509.Certificate.Extension do
   # Intended for internal use only
   def from_der!(der, type \\ :Extension)
 
-  def from_der!(der, :OTPExtensions) do
-    :public_key.der_decode(:OTPExtensions, der)
+  def from_der!(der, :Extensions) do
+    :public_key.der_decode(:Extensions, der)
     |> Enum.map(&decode/1)
   end
 

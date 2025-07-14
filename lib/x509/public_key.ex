@@ -1,6 +1,8 @@
 defmodule X509.PublicKey do
   import X509.ASN1
 
+  alias X509.Util
+
   @moduledoc """
   Functions for deriving, reading and writing RSA and EC public keys.
   """
@@ -15,6 +17,7 @@ defmodule X509.PublicKey do
           | X509.ASN.record(:certification_request_subject_pk_info)
 
   @public_key_records [:RSAPublicKey, :SubjectPublicKeyInfo]
+  @edwards_curves [oid(:"id-Ed25519"), oid(:"id-Ed448")]
 
   @doc """
   Derives the public key from the given RSA or EC private key.
@@ -33,8 +36,20 @@ defmodule X509.PublicKey do
     rsa_public_key(modulus: m, publicExponent: e)
   end
 
-  def derive(ec_private_key(parameters: params, publicKey: pub)) do
+  def derive(ec_private_key(parameters: params, publicKey: pub)) when is_binary(pub) do
     {ec_point(point: pub), params}
+  end
+
+  def derive(
+        ec_private_key(parameters: {:namedCurve, oid(:"id-Ed25519")}, privateKey: private_key)
+      ) do
+    {public_key, _} = :crypto.generate_key(:eddsa, :ed25519, private_key)
+    {ec_point(point: public_key), {:namedCurve, oid(:"id-Ed25519")}}
+  end
+
+  def derive(ec_private_key(parameters: {:namedCurve, oid(:"id-Ed448")}, privateKey: private_key)) do
+    {public_key, _} = :crypto.generate_key(:eddsa, :ed448, private_key)
+    {ec_point(point: public_key), {:namedCurve, oid(:"id-Ed448")}}
   end
 
   @doc """
@@ -57,10 +72,17 @@ defmodule X509.PublicKey do
       algorithm:
         algorithm_identifier(
           algorithm: oid(:rsaEncryption),
-          # NULL, DER encoded
-          parameters: <<5, 0>>
+          parameters: maybe_encode_parameters(:NULL)
         ),
       subjectPublicKey: :public_key.der_encode(:RSAPublicKey, public_key)
+    )
+  end
+
+  def wrap({ec_point(point: public_key), {:namedCurve, curve}}, :SubjectPublicKeyInfo)
+      when curve in @edwards_curves do
+    subject_public_key_info(
+      algorithm: algorithm_identifier(algorithm: curve),
+      subjectPublicKey: public_key
     )
   end
 
@@ -69,7 +91,7 @@ defmodule X509.PublicKey do
       algorithm:
         algorithm_identifier(
           algorithm: oid(:"id-ecPublicKey"),
-          parameters: :public_key.der_encode(:EcpkParameters, parameters)
+          parameters: maybe_encode_parameters(parameters)
         ),
       subjectPublicKey: public_key
     )
@@ -82,6 +104,14 @@ defmodule X509.PublicKey do
           algorithm: oid(:rsaEncryption),
           parameters: null()
         ),
+      subjectPublicKey: public_key
+    )
+  end
+
+  def wrap({ec_point() = public_key, {:namedCurve, curve}}, :OTPSubjectPublicKeyInfo)
+      when curve in @edwards_curves do
+    otp_subject_public_key_info(
+      algorithm: public_key_algorithm(algorithm: curve),
       subjectPublicKey: public_key
     )
   end
@@ -108,6 +138,17 @@ defmodule X509.PublicKey do
     )
   end
 
+  def wrap(
+        {ec_point(point: public_key), {:namedCurve, curve}},
+        :CertificationRequestInfo_subjectPKInfo
+      )
+      when curve in @edwards_curves do
+    certification_request_subject_pk_info(
+      algorithm: certification_request_subject_pk_info_algorithm(algorithm: curve),
+      subjectPublicKey: public_key
+    )
+  end
+
   def wrap({ec_point(point: public_key), parameters}, :CertificationRequestInfo_subjectPKInfo) do
     certification_request_subject_pk_info(
       algorithm:
@@ -117,6 +158,17 @@ defmodule X509.PublicKey do
         ),
       subjectPublicKey: public_key
     )
+  end
+
+  if Util.app_version(:public_key) >= [1, 18] do
+    defp maybe_encode_parameters(:NULL), do: :NULL
+    defp maybe_encode_parameters(parameters), do: parameters
+  else
+    defp maybe_encode_parameters(:NULL), do: <<5, 0>>
+
+    defp maybe_encode_parameters(parameters) do
+      :public_key.der_encode(:EcpkParameters, parameters)
+    end
   end
 
   @doc """
@@ -130,8 +182,16 @@ defmodule X509.PublicKey do
       algorithm_identifier(algorithm: oid(:rsaEncryption)) ->
         :public_key.der_decode(:RSAPublicKey, public_key)
 
-      algorithm_identifier(algorithm: oid(:"id-ecPublicKey"), parameters: parameters) ->
+      algorithm_identifier(algorithm: oid(:"id-ecPublicKey"), parameters: parameters)
+      when is_binary(parameters) ->
         {ec_point(point: public_key), :public_key.der_decode(:EcpkParameters, parameters)}
+
+      algorithm_identifier(algorithm: oid(:"id-ecPublicKey"), parameters: parameters) ->
+        {ec_point(point: public_key), parameters}
+
+      algorithm_identifier(algorithm: curve, parameters: :asn1_NOVALUE)
+      when curve in @edwards_curves ->
+        {ec_point(point: public_key), {:namedCurve, curve}}
     end
   end
 
@@ -142,6 +202,10 @@ defmodule X509.PublicKey do
 
       public_key_algorithm(algorithm: oid(:"id-ecPublicKey"), parameters: parameters) ->
         {public_key, parameters}
+
+      public_key_algorithm(algorithm: curve, parameters: :asn1_NOVALUE)
+      when curve in @edwards_curves ->
+        {public_key, {:namedCurve, curve}}
     end
   end
 
@@ -157,6 +221,13 @@ defmodule X509.PublicKey do
         parameters: {:asn1_OPENTYPE, parameters}
       ) ->
         {ec_point(point: public_key), :public_key.der_decode(:EcpkParameters, parameters)}
+
+      certification_request_subject_pk_info_algorithm(
+        algorithm: curve,
+        parameters: :asn1_NOVALUE
+      )
+      when curve in @edwards_curves ->
+        {ec_point(point: public_key), {:namedCurve, curve}}
     end
   end
 
@@ -272,6 +343,20 @@ defmodule X509.PublicKey do
     |> case do
       nil ->
         {:error, :not_found}
+
+      {:SubjectPublicKeyInfo, der, :not_encrypted} ->
+        # Some OTP versions fail when calling `pem_entry_decode/1` on EdDSA
+        # keys in a PKCS#8 container; need to DER-decode and unwrap ourselves
+        try do
+          :public_key.der_decode(:SubjectPublicKeyInfo, der)
+          |> unwrap()
+        rescue
+          MatchError ->
+            {:error, :malformed}
+        else
+          public_key ->
+            {:ok, public_key}
+        end
 
       entry ->
         try do

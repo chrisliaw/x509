@@ -178,7 +178,7 @@ defmodule X509.RDNSequence do
   def get_attr({:rdnSequence, sequence}, attr_type) do
     oid = attr_type_to_oid(attr_type)
 
-    for {:AttributeTypeAndValue, ^oid, value} = attr <- List.flatten(sequence) do
+    for {_, ^oid, value} = attr <- List.flatten(sequence) do
       if is_binary(value) do
         # FIXME: avoid calls to undocumented functions in :public_key app
         {_, _, value} = :pubkey_cert_records.transform(attr, :decode)
@@ -256,6 +256,10 @@ defmodule X509.RDNSequence do
     attr_oid_to_string(oid) <> "=" <> attr_value_to_string(value)
   end
 
+  defp attr_to_string({:SingleAttribute, oid, value}) do
+    attr_oid_to_string(oid) <> "=" <> attr_value_to_string(value)
+  end
+
   defp attr_oid_to_string(oid(:"id-at-countryName")), do: "C"
   defp attr_oid_to_string(oid(:"id-at-organizationName")), do: "O"
   defp attr_oid_to_string(oid(:"id-at-organizationalUnitName")), do: "OU"
@@ -281,6 +285,7 @@ defmodule X509.RDNSequence do
     |> Enum.join(".")
   end
 
+  defp attr_value_to_string({:correct, value}), do: List.to_string(value)
   defp attr_value_to_string({:utf8String, value}), do: value
   defp attr_value_to_string({:printableString, value}), do: List.to_string(value)
   defp attr_value_to_string({:ia5String, value}), do: List.to_string(value)
